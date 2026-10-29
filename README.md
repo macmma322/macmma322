@@ -36,8 +36,12 @@ cover each one.
 | [**Stemini**](https://nikolay-georgiev.dev/work/stemini)             | AI-assisted 3D model generation, from a prompt to a printer, with a person approving the concept first | Prototype  |
 | [**KObait**](https://nikolay-georgiev.dev/work/kobait)               | Embedded remote-control boat: two boards, my own radio protocol, safety gates on the motors            | Prototype  |
 
-## Open source
+## Public repositories
 
+- [**malrynth**](https://github.com/macmma322/malrynth): an x86-64 operating
+  system written from scratch in Rust. It has its own UEFI loader, a
+  dependency-free kernel that owns physical memory, and CI that boot-tests it
+  under QEMU and OVMF.
 - [**engineering-blueprint**](https://github.com/macmma322/engineering-blueprint):
   a portable `CLAUDE.md` with the engineering rules I give AI coding agents (MIT).
 - [**nikolay-georgiev.dev**](https://github.com/macmma322/nikolay-georgiev.dev):
