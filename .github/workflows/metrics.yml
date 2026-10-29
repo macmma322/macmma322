@@ -1,0 +1,132 @@
+# Renders the "Engineering activity" SVGs in the profile README with
+# lowlighter/metrics v3.34 (latest stable release) and commits them to
+# metrics/ on main. One render per GitHub theme, picked with <picture>.
+#
+# Security notes
+# - The container runs pinned by digest. The official action resolves the
+#   image by its mutable "v3.34" tag, so pinning the action's commit would not
+#   pin the code that actually runs. The run step below mirrors the action's
+#   own docker invocation (action.yml at v3.34, commit 65836723).
+# - METRICS_TOKEN must only be able to read PUBLIC data: a fine-grained PAT
+#   with "Public repositories (read-only)" and no other permissions, or a
+#   classic PAT with no scopes. Metrics does not filter private repositories
+#   itself; the token's reach is the privacy boundary.
+# - Commits use the workflow's GITHUB_TOKEN, so they are authored by
+#   github-actions[bot] and never count toward the contribution calendar.
+
+name: Metrics
+
+on:
+  schedule:
+    - cron: "23 4 * * *" # daily, 04:23 UTC (06:23 Sofia winter, 07:23 summer)
+  workflow_dispatch:
+  push: # render once as soon as this workflow (or a change to it) lands
+    branches: [main]
+    paths: [.github/workflows/metrics.yml]
+
+permissions: {}
+
+concurrency:
+  group: metrics
+  cancel-in-progress: false
+
+jobs:
+  render:
+    name: Render (${{ matrix.theme }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # both renders commit to main; never race
+      matrix:
+        include:
+          - theme: dark
+            text: "#cbc7bf"
+            muted: "#989fa7"
+            heading: "#adc1cd"
+            tile0: "#161b22"
+            tile1: "#1c4159"
+            tile2: "#3d627c"
+            tile3: "#658ba7"
+            tile4: "#95bdda"
+          - theme: light
+            text: "#2a2e33"
+            muted: "#5f646a"
+            heading: "#355067"
+            tile0: "#e6eaee"
+            tile1: "#abd7fd"
+            tile2: "#80aace"
+            tile3: "#50799b"
+            tile4: "#295171"
+    steps:
+      - name: Render and commit
+        env:
+          METRICS_IMAGE: ghcr.io/lowlighter/metrics@sha256:257392f90340f916cb8b815026f259399f6b246d3eb7de38b58bfe7a07bd5b65 # v3.34
+          INPUT_TOKEN: ${{ secrets.METRICS_TOKEN }}
+          INPUT_COMMITTER_TOKEN: ${{ github.token }}
+          INPUT_USER: macmma322
+          INPUT_FILENAME: metrics/engineering-activity.${{ matrix.theme }}.svg
+          INPUT_COMMITTER_MESSAGE: "chore(metrics): refresh ${filename} [skip ci]"
+          INPUT_OUTPUT_CONDITION: data-changed
+          INPUT_PLUGINS_ERRORS_FATAL: "yes" # keep the last good SVG rather than publish an error
+          INPUT_NOTICE_RELEASES: "no"
+          INPUT_TEMPLATE: classic
+          INPUT_CONFIG_DISPLAY: regular
+          INPUT_CONFIG_TIMEZONE: Europe/Sofia
+          INPUT_CONFIG_ORDER: isocalendar, languages, repositories
+          INPUT_OPTIMIZE: css, xml
+          INPUT_BASE: ""
+          INPUT_REPOSITORIES_AFFILIATIONS: owner
+          INPUT_REPOSITORIES_SKIPPED: macmma322/macmma322
+          INPUT_PLUGIN_ISOCALENDAR: "yes"
+          INPUT_PLUGIN_ISOCALENDAR_DURATION: full-year
+          INPUT_PLUGIN_LANGUAGES: "yes"
+          INPUT_PLUGIN_LANGUAGES_SECTIONS: most-used
+          INPUT_PLUGIN_LANGUAGES_DETAILS: percentage
+          INPUT_PLUGIN_LANGUAGES_LIMIT: "6"
+          INPUT_PLUGIN_LANGUAGES_THRESHOLD: 2%
+          INPUT_PLUGIN_LANGUAGES_OTHER: "yes"
+          INPUT_PLUGIN_REPOSITORIES: "yes"
+          INPUT_PLUGIN_REPOSITORIES_FEATURED: macmma322/malrynth, macmma322/nikolay-georgiev.dev, macmma322/engineering-blueprint
+          INPUT_EXTRAS_CSS: |
+            svg { color: ${{ matrix.muted }}; }
+            h1, h2, h3 { color: ${{ matrix.heading }}; }
+            .field, .repository .name span:first-child, .repository .description { color: ${{ matrix.text }}; }
+            .repository .infos, .field small { color: ${{ matrix.muted }}; }
+            /* Featured repos: keep language and licence. Hide "created N ago" (the
+               public repos were re-created when their history was scrubbed) and
+               the star, fork, issue and PR counters. */
+            .repository .name span:last-child, .repository .infos > div:nth-last-child(-n+4) { display: none; }
+            [fill="#ededed"] { fill: ${{ matrix.muted }}; } /* "Other" language */
+            path[fill="#ebedf0"] { fill: ${{ matrix.tile0 }}; }
+            path[fill="#9be9a8"] { fill: ${{ matrix.tile1 }}; }
+            path[fill="#40c463"] { fill: ${{ matrix.tile2 }}; }
+            path[fill="#30a14e"] { fill: ${{ matrix.tile3 }}; }
+            path[fill="#216e39"] { fill: ${{ matrix.tile4 }}; }
+        run: |
+          set -euo pipefail
+          if [ -z "$INPUT_TOKEN" ]; then
+            echo "::error::Add a public-read-only METRICS_TOKEN repository secret first."
+            exit 1
+          fi
+          envfile="$RUNNER_TEMP/metrics.env"
+          trap 'rm -f "$envfile"' EXIT
+          docker pull --quiet "$METRICS_IMAGE"
+          # The app treats an empty input as "set to empty"; the official action
+          # passes "<default-value>" for every input left unset, so do the same,
+          # reading the input list from the pinned image's own action.yml.
+          for input in $(docker run --rm --entrypoint sed "$METRICS_IMAGE" -n '/^inputs:/,/^runs:/s/^  \([a-z0-9_]*\):$/\1/p' /metrics/action.yml); do
+            var="INPUT_${input^^}"
+            [ -n "${!var+set}" ] || export "$var=<default-value>"
+          done
+          # Same encoding the official action uses: the app URI-decodes every input.
+          jq -rn 'env | to_entries[]
+            | if (.key | startswith("INPUT_")) then "\(.key)=\(.value | @uri)"
+              elif (.key | test("^(GITHUB_|ACTIONS_|CI$|TZ$)")) then "\(.key)=\(.value)"
+              else empty end' > "$envfile"
+          docker run --init --rm \
+            --volume "$GITHUB_EVENT_PATH:$GITHUB_EVENT_PATH:ro" \
+            --env-file "$envfile" \
+            "$METRICS_IMAGE"

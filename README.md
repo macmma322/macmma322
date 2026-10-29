@@ -49,6 +49,21 @@ cover each one.
   and Bulgarian, with a CV that builds itself and an AI-assisted inbox behind
   deterministic guardrails.
 
+## Engineering activity
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="metrics/engineering-activity.dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="metrics/engineering-activity.light.svg">
+    <img alt="Contribution calendar for the past year, language breakdown across my public repositories, and featured public repositories" src="metrics/engineering-activity.light.svg">
+  </picture>
+</p>
+
+<sub>Generated daily from public data only, with a token that cannot read private
+repositories. Most of the work above is private, so the language split reflects
+my public code. Built by <a href=".github/workflows/metrics.yml">a GitHub Action</a>
+running <a href="https://github.com/lowlighter/metrics">lowlighter/metrics</a>.</sub>
+
 ## Tools I reach for
 
 **Every day:**
