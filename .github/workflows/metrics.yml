@@ -7,10 +7,10 @@
 #   image by its mutable "v3.34" tag, so pinning the action's commit would not
 #   pin the code that actually runs. The run step below mirrors the action's
 #   own docker invocation (action.yml at v3.34, commit 65836723).
-# - METRICS_TOKEN must only be able to read PUBLIC data: a fine-grained PAT
-#   with "Public repositories (read-only)" and no other permissions, or a
-#   classic PAT with no scopes. Metrics does not filter private repositories
-#   itself; the token's reach is the privacy boundary.
+# - METRICS_TOKEN must be a classic PAT with NO scopes, which can only read
+#   public data. Metrics v3.34 rejects fine-grained tokens (github_pat_...)
+#   outright. Metrics does not filter private repositories itself; the
+#   token's reach is the privacy boundary, so never tick "repo".
 # - Commits use the workflow's GITHUB_TOKEN, so they are authored by
 #   github-actions[bot] and never count toward the contribution calendar.
 
@@ -75,6 +75,7 @@ jobs:
           INPUT_TEMPLATE: classic
           INPUT_CONFIG_DISPLAY: regular
           INPUT_CONFIG_TIMEZONE: Europe/Sofia
+          INPUT_CONFIG_PRESETS: "" # its action.yml default is empty, not <default-value>
           INPUT_CONFIG_ORDER: isocalendar, languages, repositories
           INPUT_OPTIMIZE: css, xml
           INPUT_BASE: ""
@@ -108,7 +109,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$INPUT_TOKEN" ]; then
-            echo "::error::Add a public-read-only METRICS_TOKEN repository secret first."
+            echo "::error::Add METRICS_TOKEN (a classic PAT with no scopes) as a repository secret first."
             exit 1
           fi
           envfile="$RUNNER_TEMP/metrics.env"
